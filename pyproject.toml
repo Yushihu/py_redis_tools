@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "redis_tools"
+version = "0.0.1"
+authors = [
+  { name="Yongjie Yu", email="yushihu0412@163.com" },
+]
+description = "a extension for redis-py"
+readme = "README.md"
+license = { file="LICENSE" }
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = ["redis (>=4.3.4)"]
+
+[project.urls]
+"Homepage" = "https://github.com/Yushihu/py_redis_tools"
