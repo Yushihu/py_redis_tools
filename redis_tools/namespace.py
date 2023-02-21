@@ -1,5 +1,5 @@
 _IN_USED = set()
-SEPERATOR = b'\x00'
+SEPARATOR = b'\x00'
 
 
 def register(prefix: str):
@@ -11,7 +11,7 @@ def register(prefix: str):
 class Namespace:
     def __init__(self, prefix: str):
         self._prefix = prefix
-        self._full_prefix = prefix.encode('utf-8') + SEPERATOR
+        self._full_prefix = prefix.encode('utf-8') + SEPARATOR
 
     @property
     def prefix(self):
@@ -22,7 +22,7 @@ class Namespace:
 
     @staticmethod
     def split(key: bytes):
-        pairs = key.rsplit(SEPERATOR, maxsplit=1)
+        pairs = key.rsplit(SEPARATOR, maxsplit=1)
         prefix = pairs[0].decode('utf-8')
         suffix = pairs[1].decode('utf-8')
         return prefix, suffix
