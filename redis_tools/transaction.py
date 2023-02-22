@@ -12,6 +12,7 @@ class Transaction:
         self._watches = set()
         self._read_funcs = []
         self._write_funcs = []
+        self._end_funcs = []
         self._status = _Status.IDLE
 
     def reading(self, func):
@@ -24,6 +25,11 @@ class Transaction:
         self._write_funcs.append(func)
         return func
 
+    def ending(self, func):
+        assert self._status.value < _Status.DONE.value
+        self._end_funcs.append(func)
+        return func
+
     def watch(self, *names):
         assert self._status is _Status.IDLE
         self._watches.update(names)
@@ -31,6 +37,7 @@ class Transaction:
     def execute(self):
         assert self._status is _Status.IDLE
         initial_write_funcs = self._write_funcs.copy()
+        initial_end_funcs = self._end_funcs.copy()
 
         err_count = 0
         with self._pipe as pipe:
@@ -57,9 +64,14 @@ class Transaction:
                         raise RuntimeError('Too many watch errors!')
                     # reset
                     self._write_funcs = initial_write_funcs.copy()
+                    self._end_funcs = initial_end_funcs.copy()
                     continue
 
                 self._status = _Status.DONE
+
+                for func in self._end_funcs:
+                    func()
+
                 break
 
     @property
