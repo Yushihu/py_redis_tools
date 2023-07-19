@@ -7,16 +7,17 @@ from redis.exceptions import WatchError
 
 
 class Transaction:
-    def __init__(self, client: Redis):
+    def __init__(self, client: Redis, max_conflict=1000):
         self._pipe = client.pipeline()
         self._watches = set()
         self._read_funcs = []
         self._write_funcs = []
         self._end_funcs = []
         self._status = _Status.IDLE
+        self._max_conflict = max_conflict
 
     def reading(self, func):
-        assert self._status is _Status.IDLE
+        assert self._status.value <= _Status.READING.value
         self._read_funcs.append(func)
         return func
 
@@ -31,24 +32,35 @@ class Transaction:
         return func
 
     def watch(self, *names):
-        assert self._status is _Status.IDLE
-        self._watches.update(names)
+        if self._status is _Status.IDLE:
+            self._watches.update(names)
+        elif self._status is _Status.READING:
+            self._pipe.watch(*names)
+        else:
+            raise RuntimeError("can not watch")
 
     def execute(self):
         assert self._status is _Status.IDLE
+        initial_read_funcs = self._read_funcs.copy()
         initial_write_funcs = self._write_funcs.copy()
         initial_end_funcs = self._end_funcs.copy()
+        initial_watches = self._watches.copy()
 
         err_count = 0
         with self._pipe as pipe:
             while True:
                 # watch
-                pipe.watch(*self._watches)
+                if self._watches:
+                    pipe.watch(*self._watches)
 
                 # reading
                 self._status = _Status.READING
-                for func in self._read_funcs:
-                    func()
+                assert pipe.watching or len(self._read_funcs) == 0
+                while self._read_funcs:
+                    read_funcs = self._read_funcs
+                    self._read_funcs = []
+                    for func in read_funcs:
+                        func()
 
                 pipe.multi()
 
@@ -60,11 +72,14 @@ class Transaction:
                 try:
                     pipe.execute()
                 except WatchError:
-                    if err_count > 10:
+                    if err_count > self._max_conflict:
                         raise RuntimeError('Too many watch errors!')
                     # reset
+                    self._read_funcs = initial_read_funcs.copy()
                     self._write_funcs = initial_write_funcs.copy()
                     self._end_funcs = initial_end_funcs.copy()
+                    self._watches = initial_watches.copy()
+                    self._status = _Status.IDLE
                     continue
 
                 self._status = _Status.DONE
